@@ -80,12 +80,60 @@ logs-telegraf: ## Logs do Telegraf
 
 # ─── Testes MQTT ──────────────────────────────────────────────────────────────
 
-test-mqtt: ## Publica mensagem de teste no broker (porta 1883)
-	@echo "📤 Publicando em test/makefile..."
+test-mqtt: ## Publica mensagem de teste simples no broker
+	@echo "📤 Publicando em test/ping..."
 	mosquitto_pub -h localhost -p 1883 \
 		-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
-		-t "test/makefile" \
+		-t "test/ping" \
 		-m '{"source":"makefile","ok":true}' -d
+
+publish: ## Publica uma medição elétrica simulada do MMW03 (uso: make publish ou make publish TOPIC=sensor/power)
+	$(eval TOPIC ?= wnology/gt100-poc-01/state)
+	@echo "📤 Publicando em $(TOPIC)..."
+	@mosquitto_pub -h localhost -p 1883 \
+		-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
+		-t "$(TOPIC)" \
+		-m '{ \
+			"data": { \
+				"v_med":   220.5, \
+				"i_tot":   10.2, \
+				"p_tot":   2250.0, \
+				"q_tot":   450.0, \
+				"s_tot":   2295.0, \
+				"fp_med":  0.98, \
+				"thdv_tot":2.1, \
+				"thdi_tot":3.4, \
+				"l1_v":    219.8, \
+				"l1_i":    3.4, \
+				"l1_p":    748.0, \
+				"l1_f":    60.0, \
+				"l2_v":    220.1, \
+				"l2_i":    3.4, \
+				"l2_p":    748.0, \
+				"l2_f":    60.0, \
+				"l3_v":    221.6, \
+				"l3_i":    3.4, \
+				"l3_p":    754.0, \
+				"l3_f":    60.0 \
+			} \
+		}' && echo "✅ Mensagem enviada!"
+
+publish-loop: ## Envia medições a cada 5s simulando o GT100 (Ctrl+C para parar)
+	$(eval TOPIC ?= wnology/gt100-poc-01/state)
+	$(eval INTERVAL ?= 5)
+	@echo "🔁 Enviando para $(TOPIC) a cada $(INTERVAL)s — Ctrl+C para parar"
+	@while true; do \
+		TS=$$(date +%s); \
+		V=$$(awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
+		I=$$(awk "BEGIN{printf \"%.2f\", 9 + $$RANDOM % 3}"); \
+		P=$$(awk "BEGIN{printf \"%.1f\", $$V * $$I * 0.98}"); \
+		mosquitto_pub -h localhost -p 1883 \
+			-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
+			-t "$(TOPIC)" \
+			-m "{\"data\":{\"v_med\":$$V,\"i_tot\":$$I,\"p_tot\":$$P,\"fp_med\":0.98,\"l1_f\":60.0}}" \
+			&& echo "$$(date '+%H:%M:%S') → v_med=$$V i_tot=$$I p_tot=$$P"; \
+		sleep $(INTERVAL); \
+	done
 
 subscribe: ## Assina todos os tópicos — mostra mensagens em tempo real (Ctrl+C para sair)
 	mosquitto_sub -h localhost -p 1883 \
