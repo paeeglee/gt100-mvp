@@ -128,7 +128,14 @@ O projeto inclui `ngrok.yml` pré-configurado com todos os túneis necessários.
 
 1. Instalar o ngrok: https://ngrok.com/download
 2. Criar conta e copiar o authtoken em https://dashboard.ngrok.com/get-started/your-authtoken
-3. Substituir `SEU_AUTHTOKEN_AQUI` no `ngrok.yml` pelo seu token
+3. Copiar o arquivo de exemplo e colocar o token:
+
+```bash
+cp ngrok.yml.example ngrok.yml
+# edite ngrok.yml e substitua SEU_AUTHTOKEN_AQUI pelo seu token
+```
+
+> `ngrok.yml` está no `.gitignore` — o authtoken não será commitado.
 
 ### Subindo todos os túneis
 

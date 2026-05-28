@@ -1,7 +1,8 @@
-# ngrok v3 — GT100 + EMQX Stack
-# Uso: ngrok start --all --config ngrok.yml
-#
-# Pré-requisito: substituir SEU_AUTHTOKEN_AQUI pelo token em https://dashboard.ngrok.com/get-started/your-authtoken
+# ngrok v2 config — GT100 + EMQX Stack
+# Uso:
+#   1. Copie este arquivo: cp ngrok.yml.example ngrok.yml
+#   2. Substitua SEU_AUTHTOKEN pelo token em https://dashboard.ngrok.com/get-started/your-authtoken
+#   3. Execute: ngrok start --all --config ngrok.yml
 #
 # IMPORTANTE — como usar o domínio gerado pelo ngrok:
 #   1. Execute: ngrok start --all --config ngrok.yml
@@ -20,7 +21,7 @@
 #   GT100 (ou use conta paga com domínio fixo).
 #   Para conexão na LAN, use diretamente o IP do servidor — sem ngrok.
 
-version: "3"
+version: "2"
 authtoken: SEU_AUTHTOKEN_AQUI
 
 tunnels:
