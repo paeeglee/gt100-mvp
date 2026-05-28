@@ -3,3 +3,4 @@
 *.crt
 *.key
 letsencrypt/
+docker-compose.override.yml
