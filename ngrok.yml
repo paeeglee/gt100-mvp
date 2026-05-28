@@ -1,0 +1,63 @@
+# ngrok v3 — GT100 + EMQX Stack
+# Uso: ngrok start --all --config ngrok.yml
+#
+# Pré-requisito: substituir SEU_AUTHTOKEN_AQUI pelo token em https://dashboard.ngrok.com/get-started/your-authtoken
+#
+# IMPORTANTE — como usar o domínio gerado pelo ngrok:
+#   1. Execute: ngrok start --all --config ngrok.yml
+#   2. Copie a URL do túnel "web" (ex: https://abc123.ngrok-free.app)
+#   3. Extraia só o hostname: abc123.ngrok-free.app
+#   4. Atualize o .env:  DOMAIN=abc123.ngrok-free.app
+#   5. Reinicie o Traefik para obter novo certificado Let's Encrypt:
+#      docker compose restart traefik
+#
+# NOTA sobre MQTT TLS via ngrok:
+#   Os túneis TCP (mqtt-plain, mqtt-tls) recebem endereços no formato
+#   X.tcp.ngrok.io:PORTA_ALEATORIA — diferentes do DOMAIN do túnel HTTP.
+#   Para o GT100 conectar via TLS (porta 8883) de fora da LAN, configure
+#   o campo Broker do GT100 com o endereço TCP exibido no painel do ngrok
+#   para o túnel "mqtt-tls", e desabilite a verificação de certificado no
+#   GT100 (ou use conta paga com domínio fixo).
+#   Para conexão na LAN, use diretamente o IP do servidor — sem ngrok.
+
+version: "3"
+authtoken: SEU_AUTHTOKEN_AQUI
+
+tunnels:
+
+  # ── Porta 80 ─────────────────────────────────────────────────────────────────
+  # OBRIGATÓRIO para o desafio ACME HTTP-01 do Let's Encrypt.
+  # O Traefik usa esta porta para provar ao Let's Encrypt que controla o domínio.
+  # O ngrok fornece o DOMAIN público (ex: abc123.ngrok-free.app) por este túnel.
+  web:
+    proto: http
+    addr: 80
+
+  # ── Porta 443 ────────────────────────────────────────────────────────────────
+  # Grafana (HTTPS — TLS terminado pelo Traefik).
+  # Acessível em: https://DOMAIN (mesmo hostname do túnel "web").
+  grafana-https:
+    proto: tcp
+    addr: 443
+
+  # ── Porta 18083 ──────────────────────────────────────────────────────────────
+  # EMQX Dashboard (HTTPS — TLS terminado pelo Traefik).
+  # Acessível em: https://DOMAIN:18083
+  emqx-dashboard:
+    proto: tcp
+    addr: 18083
+
+  # ── Porta 8883 ───────────────────────────────────────────────────────────────
+  # MQTT com TLS (terminado pelo Traefik).
+  # Endereço TCP fornecido pelo ngrok (ex: X.tcp.ngrok.io:PORTA).
+  # Configure o GT100 com este endereço quando operar fora da LAN.
+  mqtt-tls:
+    proto: tcp
+    addr: 8883
+
+  # ── Porta 1883 ───────────────────────────────────────────────────────────────
+  # MQTT sem TLS — para testes na LAN ou clientes que não suportam TLS.
+  # Endereço TCP fornecido pelo ngrok (ex: X.tcp.ngrok.io:PORTA).
+  mqtt-plain:
+    proto: tcp
+    addr: 1883
