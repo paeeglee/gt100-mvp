@@ -12,8 +12,14 @@ EMQX_TELEGRAF_PASSWORD="${EMQX_TELEGRAF_PASSWORD:?EMQX_TELEGRAF_PASSWORD não de
 AUTH_ID="password_based%3Abuilt_in_database"
 API="http://${EMQX_HOST}:18083/api/v5"
 
-echo "⏳ Aguardando EMQX ficar pronto em ${EMQX_HOST}:18083..."
-until curl -sf "${API}/status" | grep -q "running"; do
+CONTAINER=$(docker ps --filter "ancestor=emqx/emqx" --format "{{.Names}}" | head -1)
+if [[ -z "$CONTAINER" ]]; then
+  echo "❌ Container EMQX não encontrado. Confirme que o stack core está rodando." >&2
+  exit 1
+fi
+
+echo "⏳ Aguardando EMQX ficar pronto (container: ${CONTAINER})..."
+until docker exec "$CONTAINER" emqx ping 2>/dev/null | grep -q "pong"; do
   echo "   ... ainda iniciando"
   sleep 3
 done
@@ -23,8 +29,8 @@ create_user() {
   local user="$1"
   local pass="$2"
   local response
-  response=$(curl -sf -w "%{http_code}" -o /dev/null \
-    -X POST "${API}/authentication/${AUTH_ID}/users" \
+  response=$(docker exec "$CONTAINER" curl -sf -w "%{http_code}" -o /dev/null \
+    -X POST "http://localhost:18083/api/v5/authentication/${AUTH_ID}/users" \
     -u "${EMQX_ADMIN_USER}:${EMQX_ADMIN_PASSWORD}" \
     -H "Content-Type: application/json" \
     -d "{\"user_id\": \"${user}\", \"password\": \"${pass}\"}")
