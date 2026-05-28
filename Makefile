@@ -3,6 +3,9 @@
 # Se precisar de sudo para docker: make DOCKER="sudo docker" up
 # ─────────────────────────────────────────────────────────────────────────────
 
+SHELL := /bin/bash
+.SHELLFLAGS := -c
+
 DOCKER  := docker
 COMPOSE := $(DOCKER) compose
 ENV     := .env
