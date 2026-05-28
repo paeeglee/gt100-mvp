@@ -1,16 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EMQX_HOST="${EMQX_HOST:-localhost}"
-EMQX_ADMIN_USER="${EMQX_DASHBOARD_USER:-admin}"
-EMQX_ADMIN_PASSWORD="${EMQX_DASHBOARD_PASSWORD:?EMQX_DASHBOARD_PASSWORD não definido}"
-EMQX_MQTT_USER="${EMQX_MQTT_USER:?EMQX_MQTT_USER não definido}"
-EMQX_MQTT_PASSWORD="${EMQX_MQTT_PASSWORD:?EMQX_MQTT_PASSWORD não definido}"
-EMQX_TELEGRAF_USER="${EMQX_TELEGRAF_USER:?EMQX_TELEGRAF_USER não definido}"
-EMQX_TELEGRAF_PASSWORD="${EMQX_TELEGRAF_PASSWORD:?EMQX_TELEGRAF_PASSWORD não definido}"
-
+ENV_FILE="${ENV_FILE:-.env}"
 AUTH_ID="password_based%3Abuilt_in_database"
-API="http://${EMQX_HOST}:18083/api/v5"
+
+# Lê valor do .env sem passar pelo bash (evita expansão de $ # % etc.)
+get_env() {
+  grep "^${1}=" "$ENV_FILE" | head -1 | cut -d'=' -f2-
+}
+
+EMQX_ADMIN_USER=$(get_env EMQX_DASHBOARD_USER)
+EMQX_ADMIN_PASSWORD=$(get_env EMQX_DASHBOARD_PASSWORD)
+EMQX_MQTT_USER=$(get_env EMQX_MQTT_USER)
+EMQX_MQTT_PASSWORD=$(get_env EMQX_MQTT_PASSWORD)
+EMQX_TELEGRAF_USER=$(get_env EMQX_TELEGRAF_USER)
+EMQX_TELEGRAF_PASSWORD=$(get_env EMQX_TELEGRAF_PASSWORD)
+
+EMQX_ADMIN_USER="${EMQX_ADMIN_USER:-admin}"
+EMQX_MQTT_USER="${EMQX_MQTT_USER:-gt100-validacao}"
+EMQX_TELEGRAF_USER="${EMQX_TELEGRAF_USER:-telegraf}"
+
+for var in EMQX_ADMIN_PASSWORD EMQX_MQTT_PASSWORD EMQX_TELEGRAF_PASSWORD; do
+  val=$(get_env "$var")
+  if [[ -z "$val" ]]; then
+    echo "❌ $var não encontrado em $ENV_FILE" >&2
+    exit 1
+  fi
+done
 
 CONTAINER=$(docker ps --filter "ancestor=emqx/emqx" --format "{{.Names}}" | head -1)
 if [[ -z "$CONTAINER" ]]; then
@@ -24,6 +40,7 @@ until docker exec "$CONTAINER" emqx ping 2>/dev/null | grep -q "pong"; do
   sleep 3
 done
 echo "✅ EMQX pronto."
+echo "📋 Admin: ${EMQX_ADMIN_USER}"
 
 create_user() {
   local user="$1"
