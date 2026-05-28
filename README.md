@@ -12,9 +12,40 @@ GT100 ──── MQTT TLS :8883 ──► Traefik ──► EMQX ──► Tel
 ## Pré-requisitos
 
 - Docker Engine ≥ 24 com Docker Compose Plugin
-- Portas **80, 443, 1883, 8883, 18083** abertas no firewall e no servidor
+- `make` instalado: `apt install make`
+- `mosquitto-clients` para testes: `apt install mosquitto-clients`
+- Portas **80, 443, 1883, 8883, 18083** abertas no firewall
 - Domínio público resolvendo para o IP do servidor (obrigatório para Let's Encrypt)
-- `mosquitto-clients` para validação: `apt install mosquitto-clients`
+
+---
+
+## Comandos disponíveis
+
+```bash
+make help          # Lista todos os comandos
+```
+
+| Comando | O que faz |
+|---|---|
+| `make up` | Sobe Traefik + EMQX, aguarda healthy e provisiona usuários automaticamente |
+| `make monitoring` | Sobe Telegraf + InfluxDB + Grafana |
+| `make down` | Para todos os serviços (mantém dados) |
+| `make restart` | Para e sobe tudo novamente |
+| `make provision` | Sincroniza senha do dashboard e cria usuários MQTT |
+| `make status` | Status de todos os containers |
+| `make logs` | Logs de todos os serviços |
+| `make logs-emqx` | Logs do EMQX |
+| `make logs-traefik` | Logs do Traefik |
+| `make logs-telegraf` | Logs do Telegraf |
+| `make publish` | Publica uma medição elétrica simulada do MMW03 |
+| `make publish-loop` | Envia medições a cada 5s simulando o GT100 (Ctrl+C para parar) |
+| `make subscribe` | Assina todos os tópicos em tempo real (Ctrl+C para sair) |
+| `make test-mqtt` | Publica mensagem de teste simples |
+| `make clean` | ⚠️ Para tudo e apaga todos os volumes |
+
+> Se precisar de `sudo` para docker: `make DOCKER="sudo docker" up`
+
+---
 
 ## Passo a passo — primeira implantação
 
@@ -37,79 +68,67 @@ Edite `.env` e preencha **todos** os campos:
 | `INFLUXDB_ADMIN_*` | Credenciais e token do InfluxDB |
 | `GF_ADMIN_*` | Credenciais do Grafana |
 
-Gerar um token forte para o InfluxDB:
+> ⚠️ **Senhas:** use apenas letras, números e hífens. Evite `$ % # ^ ! &` — causam problemas no shell.
+> Gere senhas seguras com: `openssl rand -hex 16`
 
+Gerar token do InfluxDB:
 ```bash
 openssl rand -hex 32
 ```
 
-### 2. Subir o broker (Traefik + EMQX)
+### 2. Subir o broker
 
 ```bash
-docker compose --profile core up -d
+make up
+# ou com sudo: make DOCKER="sudo docker" up
 ```
 
-Aguardar EMQX ficar `(healthy)`:
+O comando `make up` automaticamente:
+1. Sobe Traefik + EMQX
+2. Aguarda o EMQX ficar `(healthy)`
+3. Sincroniza a senha do dashboard
+4. Cria os usuários MQTT (`gt100-validacao` e `telegraf`)
+
+### 3. Verificar status
 
 ```bash
-docker compose ps
+make status
 ```
 
-### 3. Sincronizar senha do dashboard e provisionar usuários MQTT
-
-O EMQX 5.x só usa `EMQX_DASHBOARD__DEFAULT_PASSWORD` na **primeira inicialização** com volume vazio. Após isso, a senha fica armazenada no volume e o env var é ignorado. Por isso, sincronize a senha e provisione em um único passo:
+### 4. Testar MQTT
 
 ```bash
-# Substitua Emqx2024admin pela senha que você quer usar
-sudo docker exec gt-100-emqx-1 emqx ctl admins passwd admin Emqx2024admin
+# Envia uma mensagem simples
+make test-mqtt
 
-# Atualize o .env para bater com a senha acima
-sed -i "s/^EMQX_DASHBOARD_PASSWORD=.*/EMQX_DASHBOARD_PASSWORD=Emqx2024admin/" .env
+# Envia medição elétrica simulada do MMW03
+make publish
 
-# Provisiona os usuários MQTT (idempotente)
-sudo ./scripts/create-emqx-users.sh
+# Simula GT100 enviando continuamente a cada 5s
+make publish-loop
 ```
 
-> O script lê o `.env` diretamente (sem `source`) — não é afetado por caracteres especiais nas senhas.
-
-> **Após cada `docker compose down && up`**, repita o `emqx ctl admins passwd` + `create-emqx-users.sh` se o volume foi recriado. Se o volume persistiu, os usuários MQTT já existem e o script retorna `ℹ️ Usuário já existe`.
-
-### 4. Validar MQTT sem TLS (LAN)
+Em outro terminal, para ver as mensagens chegando:
 
 ```bash
-set -a && source .env && set +a
-mosquitto_pub -h localhost -p 1883 \
-  -u "$EMQX_MQTT_USER" -P "$EMQX_MQTT_PASSWORD" \
-  -t "test/hello" -m '{"ok": true}'
+make subscribe
 ```
 
-### 5. Validar MQTT com TLS (internet)
-
-```bash
-set -a && source .env && set +a
-mosquitto_pub -h "$DOMAIN" -p 8883 \
-  -u "$EMQX_MQTT_USER" -P "$EMQX_MQTT_PASSWORD" \
-  --capath /etc/ssl/certs \
-  -t "test/tls" -m '{"tls": true}'
-```
-
-> **Staging:** Se `ACME_CA_SERVER` aponta para a CA de homologação, adicione `--insecure` ao comando.
-
-### 6. Acessar o EMQX Dashboard
+### 5. Acessar o EMQX Dashboard
 
 Abra `https://<DOMAIN>:18083` no navegador.
-Use as credenciais `EMQX_DASHBOARD_USER` / `EMQX_DASHBOARD_PASSWORD`.
+Use `EMQX_DASHBOARD_USER` / `EMQX_DASHBOARD_PASSWORD`.
 
-### 7. Subir o stack de monitoramento (TIG)
+### 6. Subir o monitoramento (TIG)
 
 ```bash
-docker compose --profile monitoring up -d
+make monitoring
 ```
 
-### 8. Acessar o Grafana
+### 7. Acessar o Grafana
 
 Abra `https://<DOMAIN>` no navegador.
-Use as credenciais `GF_ADMIN_USER` / `GF_ADMIN_PASSWORD`.
+Use `GF_ADMIN_USER` / `GF_ADMIN_PASSWORD`.
 
 Verificar datasource: **Connections → Data Sources → InfluxDB → Save & Test**.
 
@@ -132,88 +151,50 @@ No painel web do GT100, configure o modo **Master MQTT**:
 
 ## Expondo com ngrok
 
-O projeto inclui `ngrok.yml` pré-configurado com todos os túneis necessários.
+O projeto inclui `ngrok.yml.example` pré-configurado com todos os túneis.
 
-### Pré-requisito
-
-1. Instalar o ngrok: https://ngrok.com/download
-2. Criar conta e copiar o authtoken em https://dashboard.ngrok.com/get-started/your-authtoken
-3. Copiar o arquivo de exemplo e colocar o token:
+### Configurar e subir
 
 ```bash
 cp ngrok.yml.example ngrok.yml
-# edite ngrok.yml e substitua SEU_AUTHTOKEN_AQUI pelo seu token
+# edite ngrok.yml e substitua SEU_AUTHTOKEN_AQUI pelo token em:
+# https://dashboard.ngrok.com/get-started/your-authtoken
+
+ngrok start --all --config ngrok.yml
 ```
 
 > `ngrok.yml` está no `.gitignore` — o authtoken não será commitado.
 
-### Subindo todos os túneis
+### Após subir o ngrok
+
+Copie o hostname do túnel `web` (ex: `abc123.ngrok-free.app`) e atualize o stack:
 
 ```bash
-ngrok start --all --config ngrok.yml
-```
-
-### Atualizando o domínio após subir o ngrok
-
-O ngrok exibe as URLs ativas no terminal. Copie o hostname do túnel `web` (ex: `abc123.ngrok-free.app`) e atualize o stack:
-
-```bash
-# 1. Atualizar DOMAIN no .env
 sed -i "s/^DOMAIN=.*/DOMAIN=abc123.ngrok-free.app/" .env
-
-# 2. Reiniciar Traefik para emitir novo certificado Let's Encrypt
 docker compose restart traefik
-
-# 3. Acompanhar emissão do certificado
-docker compose logs -f traefik | grep -i "cert\|acme"
 ```
 
-### Túneis configurados
+### Túneis configurados (plano free = 3 túneis ativos)
 
-| Túnel | Porta local | Tipo | Endereço ngrok | Uso |
-|---|---|---|---|---|
-| `web` | 80 | HTTP | `https://XXXX.ngrok-free.app` | **Obrigatório** — ACME challenge Let's Encrypt. Este hostname é o `DOMAIN`. |
-| `grafana-https` | 443 | TCP | mesmo DOMAIN, porta 443 | Grafana em `https://DOMAIN` |
-| `emqx-dashboard` | 18083 | TCP | mesmo DOMAIN, porta 18083 | EMQX Dashboard em `https://DOMAIN:18083` |
-| `mqtt-tls` | 8883 | TCP | `X.tcp.ngrok.io:PORTA` | MQTT TLS para GT100 fora da LAN |
-| `mqtt-plain` | 1883 | TCP | `X.tcp.ngrok.io:PORTA` | MQTT plain para testes |
+| Túnel | Porta | Uso |
+|---|---|---|
+| `web` | 80 | **Obrigatório** — ACME challenge Let's Encrypt. Fornece o `DOMAIN`. |
+| `mqtt-tls` | 8883 | MQTT TLS para GT100 fora da LAN (`X.tcp.ngrok.io:PORTA`) |
+| `emqx-dashboard` | 18083 | EMQX Dashboard em `https://DOMAIN:18083` |
 
-> **MQTT TLS fora da LAN:** os túneis TCP recebem um endereço separado (`X.tcp.ngrok.io:PORTA_ALEATÓRIA`), diferente do `DOMAIN` do túnel HTTP. Para o GT100 conectar via TLS de fora da LAN, configure o campo **Broker** do GT100 com esse endereço TCP. **Na LAN, use sempre o IP do servidor diretamente** — mais simples e sem limitações de domínio.
-
-> **Rate-limit do Let's Encrypt:** ao trocar de domínio com frequência (nova sessão ngrok), use a CA de homologação para evitar bloqueio:
-> `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`
+> **MQTT na LAN:** conecte diretamente ao IP do servidor na porta `1883` — sem ngrok, sem limitação de domínio.
 
 ---
 
-## Troca de domínio (sem ngrok)
-
-Ao ter um novo domínio fixo:
+## Troca de domínio
 
 ```bash
-# 1. Atualizar .env
 sed -i "s/^DOMAIN=.*/DOMAIN=novo.dominio.com/" .env
-
-# 2. Reiniciar Traefik — solicita novo certificado automaticamente
 docker compose restart traefik
-
-# 3. Verificar nos logs
-docker compose logs -f traefik | grep -i "cert\|acme"
 ```
 
----
-
-## Referência rápida de operação
-
-| Ação | Comando |
-|---|---|
-| Status de todos os serviços | `docker compose ps` |
-| Logs do EMQX | `docker compose logs -f emqx` |
-| Logs do Traefik | `docker compose logs -f traefik` |
-| Logs do Telegraf | `docker compose logs -f telegraf` |
-| Reiniciar EMQX | `docker compose restart emqx` |
-| Reiniciar Traefik (novo cert) | `docker compose restart traefik` |
-| Derrubar tudo (mantém dados) | `docker compose --profile core --profile monitoring down` |
-| Derrubar e apagar todos os dados | `docker compose --profile core --profile monitoring down -v` |
+> Para evitar rate-limit ao trocar domínio com frequência:
+> `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`
 
 ---
 
@@ -231,15 +212,29 @@ docker compose logs -f traefik | grep -i "cert\|acme"
 
 ## Solução de problemas
 
-**EMQX não conecta no GT100:**
-- Verificar se `DOMAIN:8883` está acessível: `curl -v telnet://$DOMAIN:8883`
-- Verificar se o cert foi emitido: `docker compose logs traefik | grep cert`
+**Script `make provision` retorna erro 401:**
 
-**Telegraf não conecta no EMQX:**
-- Confirmar que o usuário `telegraf` foi criado: `./scripts/create-emqx-users.sh`
-- Ver logs: `docker compose logs telegraf`
+O EMQX 5.x só usa `EMQX_DASHBOARD__DEFAULT_PASSWORD` na primeira inicialização. Após isso a senha fica no volume. Sincronize manualmente:
+
+```bash
+# Substitua pela senha no seu .env
+sudo docker exec gt-100-emqx-1 emqx ctl admins passwd admin <EMQX_DASHBOARD_PASSWORD>
+make DOCKER="sudo docker" provision
+```
+
+**MQTT não conecta (CONNACK 5 — not authorized):**
+- Os usuários MQTT não foram criados: rode `make provision`
+- Verifique se as senhas no `.env` não têm caracteres especiais (`$ % # ^ !`)
+
+**MQTT trava sem resposta:**
+- Traefik não está encaminhando para o EMQX: `make logs-traefik`
+- EMQX não está healthy: `make status`
 
 **Let's Encrypt falha:**
-- Confirmar que a porta 80 está acessível da internet
-- Confirmar que o DNS do `DOMAIN` resolve para o IP deste servidor: `dig +short $DOMAIN`
-- Usar CA de staging para testes: `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`
+- Confirmar que porta 80 está acessível: `curl -v http://<DOMAIN>/.well-known/acme-challenge/test`
+- Confirmar DNS: `dig +short <DOMAIN>`
+- Usar staging: `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`
+
+**Telegraf não conecta no EMQX:**
+- Usuário `telegraf` não existe: `make provision`
+- Ver logs: `make logs-telegraf`
