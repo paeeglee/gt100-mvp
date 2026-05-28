@@ -71,12 +71,16 @@ services:
       - "traefik.tcp.routers.mqtts.tls.certresolver=letsencrypt"
       - "traefik.tcp.routers.mqtts.service=emqx-mqtts"
       - "traefik.tcp.services.emqx-mqtts.loadbalancer.server.port=1883"
-      # EMQX Dashboard HTTPS (porta 18083)
+      # EMQX Dashboard HTTPS via domínio público
       - "traefik.http.routers.emqx-dashboard.rule=Host(`${DOMAIN}`)"
       - "traefik.http.routers.emqx-dashboard.entrypoints=emqxdashboard"
       - "traefik.http.routers.emqx-dashboard.tls=true"
       - "traefik.http.routers.emqx-dashboard.tls.certresolver=letsencrypt"
       - "traefik.http.services.emqx-dashboard.loadbalancer.server.port=18083"
+      # EMQX Dashboard HTTP local (http://localhost:18083)
+      - "traefik.http.routers.emqx-dashboard-local.rule=Host(`localhost`)"
+      - "traefik.http.routers.emqx-dashboard-local.entrypoints=emqxdashboard"
+      - "traefik.http.routers.emqx-dashboard-local.service=emqx-dashboard"
 
   # ─── MONITORING PROFILE ──────────────────────────────────────────────────────
 
