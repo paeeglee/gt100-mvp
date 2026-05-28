@@ -60,9 +60,16 @@ docker compose ps
 Execute **uma única vez** após o primeiro start (idempotente para re-execuções):
 
 ```bash
-set -a && source .env && set +a
 ./scripts/create-emqx-users.sh
 ```
+
+> O script lê o `.env` diretamente (sem `source`) e usa a API JWT do EMQX 5.x — não é afetado por caracteres especiais nas senhas.
+
+> **Se o script retornar erro 401:** o password do dashboard pode ter ficado dessincronizado. Resete via:
+> ```bash
+> sudo docker exec gt-100-emqx-1 emqx ctl admins passwd admin <nova_senha>
+> # Atualize EMQX_DASHBOARD_PASSWORD no .env com a nova senha
+> ```
 
 ### 4. Validar MQTT sem TLS (LAN)
 

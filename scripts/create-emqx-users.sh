@@ -3,6 +3,7 @@ set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-.env}"
 AUTH_ID="password_based%3Abuilt_in_database"
+EMQX_API="${EMQX_API:-http://localhost:18084/api/v5}"
 
 # Lê valor do .env sem passar pelo bash (evita expansão de $ # % etc.)
 get_env() {
@@ -20,37 +21,34 @@ EMQX_ADMIN_USER="${EMQX_ADMIN_USER:-admin}"
 EMQX_MQTT_USER="${EMQX_MQTT_USER:-gt100-validacao}"
 EMQX_TELEGRAF_USER="${EMQX_TELEGRAF_USER:-telegraf}"
 
-for var in EMQX_ADMIN_PASSWORD EMQX_MQTT_PASSWORD EMQX_TELEGRAF_PASSWORD; do
-  val=$(get_env "$var")
-  if [[ -z "$val" ]]; then
-    echo "❌ $var não encontrado em $ENV_FILE" >&2
-    exit 1
-  fi
-done
-
-CONTAINER=$(docker ps --filter "ancestor=emqx/emqx" --format "{{.Names}}" | head -1)
-if [[ -z "$CONTAINER" ]]; then
-  echo "❌ Container EMQX não encontrado. Confirme que o stack core está rodando." >&2
-  exit 1
-fi
-
-echo "⏳ Aguardando EMQX ficar pronto (container: ${CONTAINER})..."
-until docker exec "$CONTAINER" emqx ping 2>/dev/null | grep -q "pong"; do
+echo "⏳ Aguardando EMQX ficar pronto em ${EMQX_API}..."
+until curl -sf "${EMQX_API}/status" | grep -q "running"; do
   echo "   ... ainda iniciando"
   sleep 3
 done
 echo "✅ EMQX pronto."
-echo "📋 Admin: ${EMQX_ADMIN_USER}"
+
+# Obtém JWT (EMQX 5.x usa token em vez de basic auth na API)
+echo "🔑 Autenticando como ${EMQX_ADMIN_USER}..."
+TOKEN=$(curl -sf -X POST "${EMQX_API}/login" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"${EMQX_ADMIN_USER}\",\"password\":\"${EMQX_ADMIN_PASSWORD}\"}" \
+  | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+if [[ -z "$TOKEN" ]]; then
+  echo "❌ Falha ao obter token. Verifique EMQX_DASHBOARD_USER e EMQX_DASHBOARD_PASSWORD no .env" >&2
+  exit 1
+fi
 
 create_user() {
   local user="$1"
   local pass="$2"
   local response
-  response=$(docker exec "$CONTAINER" curl -sf -w "%{http_code}" -o /dev/null \
-    -X POST "http://localhost:18083/api/v5/authentication/${AUTH_ID}/users" \
-    -u "${EMQX_ADMIN_USER}:${EMQX_ADMIN_PASSWORD}" \
+  response=$(curl -sf -w "%{http_code}" -o /dev/null \
+    -X POST "${EMQX_API}/authentication/${AUTH_ID}/users" \
+    -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "{\"user_id\": \"${user}\", \"password\": \"${pass}\"}")
+    -d "{\"user_id\":\"${user}\",\"password\":\"${pass}\"}")
   if [[ "$response" == "201" ]]; then
     echo "✅ Usuário criado: ${user}"
   elif [[ "$response" == "409" ]]; then
