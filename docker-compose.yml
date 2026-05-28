@@ -35,7 +35,7 @@ services:
       - traefik-public
 
   emqx:
-    image: emqx/emqx:5-latest
+    image: emqx/emqx:latest
     profiles: [core]
     restart: unless-stopped
     depends_on:
