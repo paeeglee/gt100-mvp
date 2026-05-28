@@ -55,21 +55,24 @@ Aguardar EMQX ficar `(healthy)`:
 docker compose ps
 ```
 
-### 3. Provisionar usuários MQTT
+### 3. Sincronizar senha do dashboard e provisionar usuários MQTT
 
-Execute **uma única vez** após o primeiro start (idempotente para re-execuções):
+O EMQX 5.x só usa `EMQX_DASHBOARD__DEFAULT_PASSWORD` na **primeira inicialização** com volume vazio. Após isso, a senha fica armazenada no volume e o env var é ignorado. Por isso, sincronize a senha e provisione em um único passo:
 
 ```bash
-./scripts/create-emqx-users.sh
+# Substitua Emqx2024admin pela senha que você quer usar
+sudo docker exec gt-100-emqx-1 emqx ctl admins passwd admin Emqx2024admin
+
+# Atualize o .env para bater com a senha acima
+sed -i "s/^EMQX_DASHBOARD_PASSWORD=.*/EMQX_DASHBOARD_PASSWORD=Emqx2024admin/" .env
+
+# Provisiona os usuários MQTT (idempotente)
+sudo ./scripts/create-emqx-users.sh
 ```
 
-> O script lê o `.env` diretamente (sem `source`) e usa a API JWT do EMQX 5.x — não é afetado por caracteres especiais nas senhas.
+> O script lê o `.env` diretamente (sem `source`) — não é afetado por caracteres especiais nas senhas.
 
-> **Se o script retornar erro 401:** o password do dashboard pode ter ficado dessincronizado. Resete via:
-> ```bash
-> sudo docker exec gt-100-emqx-1 emqx ctl admins passwd admin <nova_senha>
-> # Atualize EMQX_DASHBOARD_PASSWORD no .env com a nova senha
-> ```
+> **Após cada `docker compose down && up`**, repita o `emqx ctl admins passwd` + `create-emqx-users.sh` se o volume foi recriado. Se o volume persistiu, os usuários MQTT já existem e o script retorna `ℹ️ Usuário já existe`.
 
 ### 4. Validar MQTT sem TLS (LAN)
 
