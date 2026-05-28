@@ -8,10 +8,10 @@ datasources:
     uid: influxdb-gt100
     jsonData:
       version: Flux
-      organization: ${INFLUXDB_ORG}
-      defaultBucket: ${INFLUXDB_BUCKET}
+      organization: $INFLUXDB_ORG
+      defaultBucket: $INFLUXDB_BUCKET
       tlsSkipVerify: true
     secureJsonData:
-      token: ${INFLUXDB_ADMIN_TOKEN}
+      token: $INFLUXDB_ADMIN_TOKEN
     isDefault: true
     editable: false
