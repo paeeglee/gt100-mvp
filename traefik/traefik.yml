@@ -1,0 +1,35 @@
+api:
+  dashboard: false
+
+log:
+  level: INFO
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+  emqxdashboard:
+    address: ":18083"
+  mqtts:
+    address: ":8883"
+  mqtt:
+    address: ":1883"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  docker:
+    exposedByDefault: false
+    network: traefik-public
