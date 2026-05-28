@@ -36,15 +36,19 @@ echo "✅ EMQX pronto."
 
 # Obtém JWT via docker exec — acessa API interna sem expor portas
 echo "🔑 Autenticando como ${EMQX_ADMIN_USER}..."
-TOKEN=$(docker exec "$CONTAINER" curl -sf \
+LOGIN_RESPONSE=$(docker exec "$CONTAINER" curl -s \
   -X POST "${CONTAINER_API}/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"${EMQX_ADMIN_USER}\",\"password\":\"${EMQX_ADMIN_PASSWORD}\"}" \
-  | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  -d "{\"username\":\"${EMQX_ADMIN_USER}\",\"password\":\"${EMQX_ADMIN_PASSWORD}\"}" || true)
+
+echo "   Resposta: ${LOGIN_RESPONSE}"
+
+TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4 || true)
 
 if [[ -z "$TOKEN" ]]; then
-  echo "❌ Falha ao obter token. Verifique EMQX_DASHBOARD_USER e EMQX_DASHBOARD_PASSWORD no .env" >&2
-  echo "   Para resetar a senha do admin: sudo docker exec ${CONTAINER} emqx ctl admins passwd admin <nova_senha>" >&2
+  echo "❌ Falha ao obter token." >&2
+  echo "   Senha no .env: EMQX_DASHBOARD_PASSWORD=${EMQX_ADMIN_PASSWORD}" >&2
+  echo "   Para resetar: sudo docker exec ${CONTAINER} emqx ctl admins passwd admin <nova_senha>" >&2
   exit 1
 fi
 
