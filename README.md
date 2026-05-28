@@ -120,9 +120,57 @@ No painel web do GT100, configure o modo **Master MQTT**:
 
 ---
 
-## Troca de domínio
+## Expondo com ngrok
 
-Ao receber um novo domínio (ex: novo túnel ngrok):
+O projeto inclui `ngrok.yml` pré-configurado com todos os túneis necessários.
+
+### Pré-requisito
+
+1. Instalar o ngrok: https://ngrok.com/download
+2. Criar conta e copiar o authtoken em https://dashboard.ngrok.com/get-started/your-authtoken
+3. Substituir `SEU_AUTHTOKEN_AQUI` no `ngrok.yml` pelo seu token
+
+### Subindo todos os túneis
+
+```bash
+ngrok start --all --config ngrok.yml
+```
+
+### Atualizando o domínio após subir o ngrok
+
+O ngrok exibe as URLs ativas no terminal. Copie o hostname do túnel `web` (ex: `abc123.ngrok-free.app`) e atualize o stack:
+
+```bash
+# 1. Atualizar DOMAIN no .env
+sed -i "s/^DOMAIN=.*/DOMAIN=abc123.ngrok-free.app/" .env
+
+# 2. Reiniciar Traefik para emitir novo certificado Let's Encrypt
+docker compose restart traefik
+
+# 3. Acompanhar emissão do certificado
+docker compose logs -f traefik | grep -i "cert\|acme"
+```
+
+### Túneis configurados
+
+| Túnel | Porta local | Tipo | Endereço ngrok | Uso |
+|---|---|---|---|---|
+| `web` | 80 | HTTP | `https://XXXX.ngrok-free.app` | **Obrigatório** — ACME challenge Let's Encrypt. Este hostname é o `DOMAIN`. |
+| `grafana-https` | 443 | TCP | mesmo DOMAIN, porta 443 | Grafana em `https://DOMAIN` |
+| `emqx-dashboard` | 18083 | TCP | mesmo DOMAIN, porta 18083 | EMQX Dashboard em `https://DOMAIN:18083` |
+| `mqtt-tls` | 8883 | TCP | `X.tcp.ngrok.io:PORTA` | MQTT TLS para GT100 fora da LAN |
+| `mqtt-plain` | 1883 | TCP | `X.tcp.ngrok.io:PORTA` | MQTT plain para testes |
+
+> **MQTT TLS fora da LAN:** os túneis TCP recebem um endereço separado (`X.tcp.ngrok.io:PORTA_ALEATÓRIA`), diferente do `DOMAIN` do túnel HTTP. Para o GT100 conectar via TLS de fora da LAN, configure o campo **Broker** do GT100 com esse endereço TCP. **Na LAN, use sempre o IP do servidor diretamente** — mais simples e sem limitações de domínio.
+
+> **Rate-limit do Let's Encrypt:** ao trocar de domínio com frequência (nova sessão ngrok), use a CA de homologação para evitar bloqueio:
+> `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`
+
+---
+
+## Troca de domínio (sem ngrok)
+
+Ao ter um novo domínio fixo:
 
 ```bash
 # 1. Atualizar .env
@@ -134,9 +182,6 @@ docker compose restart traefik
 # 3. Verificar nos logs
 docker compose logs -f traefik | grep -i "cert\|acme"
 ```
-
-> Para evitar rate-limit durante testes frequentes de troca de domínio, use a CA de homologação:
-> `ACME_CA_SERVER=https://acme-staging-v02.api.letsencrypt.org/directory`
 
 ---
 
