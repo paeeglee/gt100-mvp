@@ -150,6 +150,10 @@ publish-loop: ## Envia medições a cada 5s simulando o GT100 (Ctrl+C para parar
 		sleep $(INTERVAL); \
 	done
 
+publish-fast: ## Publica a 100 msg/s usando conexão MQTT persistente (uso: make publish-fast ou make publish-fast MQTT_RATE=50)
+	@python3 -c "import paho.mqtt.client" 2>/dev/null || pip install --quiet paho-mqtt
+	@MQTT_RATE=$(or $(MQTT_RATE),100) python3 scripts/publish-fast.py
+
 subscribe: ## Assina todos os tópicos — mostra mensagens em tempo real (Ctrl+C para sair)
 	mosquitto_sub -h localhost -p 1883 \
 		-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
