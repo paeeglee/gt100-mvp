@@ -78,7 +78,7 @@ services:
       - monitoring
 
   grafana:
-    image: grafana/grafana:11
+    image: grafana/grafana:latest
     profiles: [monitoring]
     restart: unless-stopped
     depends_on:

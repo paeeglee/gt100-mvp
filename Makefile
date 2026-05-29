@@ -127,9 +127,9 @@ publish-loop: ## Envia medições a cada 5s simulando o GT100 (Ctrl+C para parar
 	@echo "🔁 Enviando para $(TOPIC) a cada $(INTERVAL)s — Ctrl+C para parar"
 	@while true; do \
 		TS=$$(date +%s); \
-		V=$$(awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
-		I=$$(awk "BEGIN{printf \"%.2f\", 9 + $$RANDOM % 3}"); \
-		P=$$(awk "BEGIN{printf \"%.1f\", $$V * $$I * 0.98}"); \
+		V=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
+		I=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.2f\", 9 + $$RANDOM % 3}"); \
+		P=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$V * $$I * 0.98}"); \
 		mosquitto_pub -h localhost -p 1883 \
 			-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
 			-t "$(TOPIC)" \

@@ -56,7 +56,7 @@ create_user() {
   local user="$1"
   local pass="$2"
   local response
-  response=$(docker exec "$CONTAINER" curl -sf -w "%{http_code}" -o /dev/null \
+  response=$(docker exec "$CONTAINER" curl -s -w "%{http_code}" -o /dev/null \
     -X POST "${CONTAINER_API}/authentication/${AUTH_ID}/users" \
     -H "Authorization: Bearer ${TOKEN}" \
     -H "Content-Type: application/json" \
@@ -64,7 +64,18 @@ create_user() {
   if [[ "$response" == "201" ]]; then
     echo "✅ Usuário criado: ${user}"
   elif [[ "$response" == "409" ]]; then
-    echo "ℹ️  Usuário já existe (idempotente): ${user}"
+    local put_response
+    put_response=$(docker exec "$CONTAINER" curl -s -w "%{http_code}" -o /dev/null \
+      -X PUT "${CONTAINER_API}/authentication/${AUTH_ID}/users/${user}" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "{\"password\":\"${pass}\"}")
+    if [[ "$put_response" == "200" ]]; then
+      echo "✅ Senha atualizada: ${user}"
+    else
+      echo "❌ Falha ao atualizar senha de ${user} — HTTP ${put_response}" >&2
+      exit 1
+    fi
   else
     echo "❌ Falha ao criar usuário ${user} — HTTP ${response}" >&2
     exit 1
