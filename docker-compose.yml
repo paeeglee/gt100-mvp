@@ -1,11 +1,8 @@
 networks:
-  traefik-public:
-    name: traefik-public
   monitoring:
     name: monitoring
 
 volumes:
-  traefik-certs:
   emqx-data:
   emqx-log:
   influxdb-data:
@@ -16,32 +13,13 @@ services:
 
   # ─── CORE PROFILE ────────────────────────────────────────────────────────────
 
-  traefik:
-    image: traefik:v3
-    profiles: [core]
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "1883:1883"
-      - "8883:8883"
-      - "18083:18083"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - traefik-certs:/letsencrypt
-    environment:
-      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${LETSENCRYPT_EMAIL}
-      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_CASERVER=${ACME_CA_SERVER}
-    networks:
-      - traefik-public
-
   emqx:
     image: emqx/emqx:latest
     profiles: [core]
     restart: unless-stopped
-    depends_on:
-      - traefik
+    ports:
+      - "1883:1883"
+      - "18083:18083"
     volumes:
       - ./emqx/emqx.conf:/opt/emqx/etc/emqx.conf:ro
       - emqx-data:/opt/emqx/data
@@ -50,37 +28,12 @@ services:
       - EMQX_DASHBOARD__DEFAULT_USERNAME=${EMQX_DASHBOARD_USER}
       - EMQX_DASHBOARD__DEFAULT_PASSWORD=${EMQX_DASHBOARD_PASSWORD}
     networks:
-      - traefik-public
       - monitoring
     healthcheck:
       test: ["CMD", "emqx", "ping"]
       interval: 10s
       timeout: 5s
       retries: 12
-    labels:
-      - "traefik.enable=true"
-      # MQTT plain TCP (sem TLS — acesso LAN direto)
-      - "traefik.tcp.routers.mqtt.rule=HostSNI(`*`)"
-      - "traefik.tcp.routers.mqtt.entrypoints=mqtt"
-      - "traefik.tcp.routers.mqtt.service=emqx-mqtt"
-      - "traefik.tcp.services.emqx-mqtt.loadbalancer.server.port=1883"
-      # MQTT TLS (Traefik termina TLS, repassa plain para EMQX)
-      - "traefik.tcp.routers.mqtts.rule=HostSNI(`${DOMAIN}`)"
-      - "traefik.tcp.routers.mqtts.entrypoints=mqtts"
-      - "traefik.tcp.routers.mqtts.tls=true"
-      - "traefik.tcp.routers.mqtts.tls.certresolver=letsencrypt"
-      - "traefik.tcp.routers.mqtts.service=emqx-mqtts"
-      - "traefik.tcp.services.emqx-mqtts.loadbalancer.server.port=1883"
-      # EMQX Dashboard HTTPS via domínio público
-      - "traefik.http.routers.emqx-dashboard.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.emqx-dashboard.entrypoints=emqxdashboard"
-      - "traefik.http.routers.emqx-dashboard.tls=true"
-      - "traefik.http.routers.emqx-dashboard.tls.certresolver=letsencrypt"
-      - "traefik.http.services.emqx-dashboard.loadbalancer.server.port=18083"
-      # EMQX Dashboard HTTP local (http://localhost:18083)
-      - "traefik.http.routers.emqx-dashboard-local.rule=Host(`localhost`)"
-      - "traefik.http.routers.emqx-dashboard-local.entrypoints=emqxdashboard"
-      - "traefik.http.routers.emqx-dashboard-local.service=emqx-dashboard"
 
   # ─── MONITORING PROFILE ──────────────────────────────────────────────────────
 
@@ -131,6 +84,8 @@ services:
     depends_on:
       influxdb:
         condition: service_healthy
+    ports:
+      - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -141,12 +96,4 @@ services:
       - INFLUXDB_ORG=${INFLUXDB_ORG}
       - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
     networks:
-      - traefik-public
       - monitoring
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.grafana.entrypoints=websecure"
-      - "traefik.http.routers.grafana.tls=true"
-      - "traefik.http.routers.grafana.tls.certresolver=letsencrypt"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
