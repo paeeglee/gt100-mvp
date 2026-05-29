@@ -126,15 +126,27 @@ publish-loop: ## Envia medições a cada 5s simulando o GT100 (Ctrl+C para parar
 	$(eval INTERVAL ?= 5)
 	@echo "🔁 Enviando para $(TOPIC) a cada $(INTERVAL)s — Ctrl+C para parar"
 	@while true; do \
-		TS=$$(date +%s); \
-		V=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
-		I=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.2f\", 9 + $$RANDOM % 3}"); \
-		P=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$V * $$I * 0.98}"); \
+		L1V=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
+		L2V=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
+		L3V=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
+		L1I=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.2f\", 3 + $$RANDOM % 2}"); \
+		L2I=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.2f\", 3 + $$RANDOM % 2}"); \
+		L3I=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.2f\", 3 + $$RANDOM % 2}"); \
+		L1P=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$L1V * $$L1I * 0.98}"); \
+		L2P=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$L2V * $$L2I * 0.98}"); \
+		L3P=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$L3V * $$L3I * 0.98}"); \
+		ITOT=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.2f\", $$L1I + $$L2I + $$L3I}"); \
+		PTOT=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$L1P + $$L2P + $$L3P}"); \
+		VMED=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", ($$L1V + $$L2V + $$L3V) / 3}"); \
+		QTOT=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$PTOT * 0.2}"); \
+		STOT=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", $$PTOT * 1.02}"); \
+		THDV=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 1.5 + $$RANDOM % 2}"); \
+		THDI=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 2.0 + $$RANDOM % 3}"); \
 		mosquitto_pub -h localhost -p 1883 \
 			-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
 			-t "$(TOPIC)" \
-			-m "{\"data\":{\"v_med\":$$V,\"i_tot\":$$I,\"p_tot\":$$P,\"fp_med\":0.98,\"l1_f\":60.0}}" \
-			&& echo "$$(date '+%H:%M:%S') → v_med=$$V i_tot=$$I p_tot=$$P"; \
+			-m "{\"data\":{\"v_med\":$$VMED,\"i_tot\":$$ITOT,\"p_tot\":$$PTOT,\"q_tot\":$$QTOT,\"s_tot\":$$STOT,\"fp_med\":0.98,\"thdv_tot\":$$THDV,\"thdi_tot\":$$THDI,\"l1_v\":$$L1V,\"l1_i\":$$L1I,\"l1_p\":$$L1P,\"l1_f\":60.0,\"l2_v\":$$L2V,\"l2_i\":$$L2I,\"l2_p\":$$L2P,\"l2_f\":60.0,\"l3_v\":$$L3V,\"l3_i\":$$L3I,\"l3_p\":$$L3P,\"l3_f\":60.0}}" \
+			&& echo "$$(date '+%H:%M:%S') → v_med=$$VMED i_tot=$$ITOT p_tot=$$PTOT"; \
 		sleep $(INTERVAL); \
 	done
 
