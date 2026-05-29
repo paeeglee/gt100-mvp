@@ -19,6 +19,7 @@ services:
     restart: unless-stopped
     ports:
       - "1883:1883"
+      - "8083:8083"
       - "18083:18083"
     volumes:
       - ./emqx/emqx.conf:/opt/emqx/etc/emqx.conf:ro
