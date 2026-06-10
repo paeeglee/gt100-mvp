@@ -123,7 +123,7 @@ publish: ## Publica uma medição elétrica simulada do MMW03 (uso: make publish
 
 publish-loop: ## Envia medições a cada 5s simulando o GT100 (Ctrl+C para parar)
 	$(eval TOPIC ?= wnology/gt100-poc-01/state)
-	$(eval INTERVAL ?= 5)
+	$(eval INTERVAL ?= 1)
 	@echo "🔁 Enviando para $(TOPIC) a cada $(INTERVAL)s — Ctrl+C para parar"
 	@while true; do \
 		L1V=$$(LC_NUMERIC=C awk "BEGIN{printf \"%.1f\", 218 + $$RANDOM % 5}"); \
@@ -154,10 +154,11 @@ publish-fast: ## Publica a 100 msg/s usando conexão MQTT persistente (uso: make
 	@python3 -c "import paho.mqtt.client" 2>/dev/null || pip install --quiet paho-mqtt
 	@MQTT_RATE=$(or $(MQTT_RATE),100) python3 scripts/publish-fast.py
 
-subscribe: ## Assina todos os tópicos — mostra mensagens em tempo real (Ctrl+C para sair)
+subscribe: ## Assina wnology/# — mostra mensagens em tempo real (uso: make subscribe ou make subscribe TOPIC=test/#)
+	$(eval TOPIC ?= wnology/\#)
 	mosquitto_sub -h localhost -p 1883 \
 		-u "$(MQTT_USER)" -P "$(MQTT_PASS)" \
-		-t "#" -v
+		-t "$(TOPIC)" -v
 
 # ─── Limpeza ──────────────────────────────────────────────────────────────────
 
